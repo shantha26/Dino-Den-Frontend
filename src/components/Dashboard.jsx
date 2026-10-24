@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { fetchStats, fetchCustomers } from "../api.js";
 import { getKidPackageBreakdown } from "../utils.js";
+import { useSettings } from "../context/SettingsContext.jsx";
 import { Brachiosaurus } from "./shared/AnimatedDinosaurs.jsx";
 
 // ─── Palette ──────────────────────────────────────────────────────────────────
@@ -97,7 +98,7 @@ function downloadCSV(filename, headers, rows) {
 }
 
 // Build booking CSV from raw customer records
-function buildBookingCSV(customers) {
+function buildBookingCSV(customers, softPlayPricing = []) {
   const headers = [
     "Date","Time In","Time Out","Parent Name","Kid Name","Mobile",
     "Kids & Packages",
@@ -109,7 +110,7 @@ function buildBookingCSV(customers) {
   const rows = (customers || []).map(c => [
     c.date, c.timeIn, c.timeOut || "",
     c.parentName, c.kidName, c.mobileNumber,
-    getKidPackageBreakdown(c)
+    getKidPackageBreakdown(c, softPlayPricing)
       .map((k) => `${k.name}: ${k.packages.join(" + ") || "—"}`)
       .join(" | "),
     c.playPackages?.half_hour_soft_play || 0,
@@ -265,6 +266,12 @@ function AutoRefreshBadge({ nextIn, period }) {
 const REFRESH_MS = 5 * 60 * 1000; // 5 min auto-refresh (simulates "daily updated")
 
 export default function Dashboard() {
+  const { settings } = useSettings();
+
+  const softPlayPricing = Array.isArray(settings?.softPlayPricing)
+    ? settings.softPlayPricing
+    : [];
+
   const [stats, setStats] = useState(null);
   const [allCustomers, setAllCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -316,7 +323,7 @@ export default function Dashboard() {
   const handleDownloadBookings = async () => {
     setCsvLoading(true);
     try {
-      const { headers, rows } = buildBookingCSV(allCustomers);
+      const { headers, rows } = buildBookingCSV(allCustomers, softPlayPricing);
       const today = new Date().toISOString().slice(0, 10);
       downloadCSV(`DinoPlayZone_Bookings_${today}.csv`, headers, rows);
     } finally {
@@ -660,7 +667,7 @@ export default function Dashboard() {
                       {allCustomers.length === 0 ? (
                         <tr><td colSpan={8} className="text-center py-10 font-bold text-ink/30 italic">No bookings recorded yet</td></tr>
                       ) : allCustomers.slice(0, 50).map((c, i) => {
-                        const breakdown = getKidPackageBreakdown(c);
+                        const breakdown = getKidPackageBreakdown(c, softPlayPricing);
                         return (
                           <tr key={c._id || i} className={i % 2 === 1 ? "bg-ink/[0.025]" : ""}>
                             <td className="px-3 py-2 font-display border-t border-ink/5 text-sm whitespace-nowrap">{c.date}</td>
